@@ -32,8 +32,48 @@ const postElementTypeOptions = [
 
 const cardModeOptions = [
 	{ name: '简单模式（标题 + 正文 + 按钮）', value: 'simple' },
+	{ name: '表单配置（卡片 2.0）', value: 'form' },
 	{ name: '高级模式（完整 JSON）', value: 'raw' },
 ];
+
+const card2WidthModeOptions = [
+	{ name: '默认 (600px)', value: 'default' },
+	{ name: '紧凑 (400px)', value: 'compact' },
+	{ name: '撑满宽度', value: 'fill' },
+];
+
+const card2HeaderTemplateOptions = [
+	{ name: 'Default', value: 'default' },
+	{ name: 'Blue', value: 'blue' },
+	{ name: 'Wathet', value: 'wathet' },
+	{ name: 'Turquoise', value: 'turquoise' },
+	{ name: 'Green', value: 'green' },
+	{ name: 'Yellow', value: 'yellow' },
+	{ name: 'Orange', value: 'orange' },
+	{ name: 'Red', value: 'red' },
+	{ name: 'Carmine', value: 'carmine' },
+	{ name: 'Violet', value: 'violet' },
+	{ name: 'Purple', value: 'purple' },
+	{ name: 'Indigo', value: 'indigo' },
+	{ name: 'Grey', value: 'grey' },
+];
+
+const card2BodyElementTypeOptions = [
+	{ name: '纯文本 (Plain_text)', value: 'plain_text' },
+	{ name: '富文本 Markdown (Markdown)', value: 'markdown' },
+	{ name: '按钮 (Button)', value: 'button' },
+	{ name: '图片 (Img)', value: 'img' },
+	{ name: '分割线 (Hr)', value: 'hr' },
+	{ name: '分栏 (Column_set)', value: 'column_set' },
+	{ name: '交互容器 (Interactive_container)', value: 'interactive_container' },
+	{ name: '折叠面板 (Collapsible_panel)', value: 'collapsible_panel' },
+	{ name: '表单容器 (Form)', value: 'form' },
+];
+
+const showCardForm = {
+	messageType: ['interactive'],
+	cardMode: ['form'],
+} as { messageType: string[]; cardMode: string[] };
 
 function toArray<T>(v: T[] | Record<string, T> | undefined): T[] {
 	if (!v) return [];
@@ -41,6 +81,174 @@ function toArray<T>(v: T[] | Record<string, T> | undefined): T[] {
 	return Object.keys(v)
 		.sort((a, b) => Number(a) - Number(b))
 		.map((k) => (v as Record<string, T>)[k]);
+}
+
+/** 构建卡片 2.0 单个简单元素（plain_text / markdown / button / img / hr），支持 elementType / col_elType / c_elType */
+function buildCard2SimpleElement(el: Record<string, unknown>): Record<string, unknown> {
+	const tag = (el.elementType ?? el.col_elType ?? el.c_elType) as string;
+	const out: Record<string, unknown> = {};
+	if (el.element_id && String(el.element_id).trim()) out.element_id = String(el.element_id).trim();
+	if (tag === 'plain_text') {
+		out.tag = 'plain_text';
+		out.content = el.content ?? '';
+		return out;
+	}
+	if (tag === 'markdown') {
+		out.tag = 'markdown';
+		out.content = el.content ?? '';
+		return out;
+	}
+	if (tag === 'button') {
+		out.tag = 'button';
+		out.text = { tag: 'plain_text', content: el.button_text ?? '' };
+		out.url = el.button_url ?? '';
+		out.type = el.button_type || 'default';
+		return out;
+	}
+	if (tag === 'img') {
+		out.tag = 'img';
+		out.img_key = el.img_key ?? '';
+		return out;
+	}
+	if (tag === 'hr') {
+		out.tag = 'hr';
+		return out;
+	}
+	return out;
+}
+
+const CARD2_CONTAINER_TAGS = ['column_set', 'interactive_container', 'collapsible_panel', 'form'];
+
+/** 从集合构建卡片 2.0 元素数组（支持简单类型与容器递归） */
+function buildCard2Elements(
+	raw: Array<Record<string, unknown>> | Record<string, Record<string, unknown>> | undefined,
+): Record<string, unknown>[] {
+	const arr = toArray(raw);
+	return arr
+		.filter((el) => el && (el.elementType || el.col_elType || el.c_elType))
+		.map((el) => {
+			const tag = el.elementType as string | undefined;
+			if (tag && CARD2_CONTAINER_TAGS.includes(tag)) return buildCard2Element(el);
+			return buildCard2SimpleElement(el);
+		});
+}
+
+/** 表单容器内子元素构建（按钮可带 form_action_type、name） */
+function buildCard2FormElements(
+	raw: Array<Record<string, unknown>> | Record<string, Record<string, unknown>> | undefined,
+): Record<string, unknown>[] {
+	const arr = toArray(raw);
+	return arr
+		.filter((el) => el && (el.elementType || el.col_elType || el.c_elType))
+		.map((el) => {
+			const tag = (el.elementType ?? el.c_elType) as string | undefined;
+			if (tag && CARD2_CONTAINER_TAGS.includes(tag)) return buildCard2Element(el);
+			const out = buildCard2SimpleElement(el);
+			if (out.tag === 'button') {
+				if (el.form_action_type) out.form_action_type = el.form_action_type;
+				if (el.form_button_name != null && String(el.form_button_name).trim())
+					out.name = String(el.form_button_name).trim();
+			}
+			return out;
+		});
+}
+
+/** 构建卡片 2.0 单个 body 元素（含容器） */
+function buildCard2Element(el: Record<string, unknown>): Record<string, unknown> {
+	const tag = el.elementType as string;
+	const out: Record<string, unknown> = {};
+	if (el.element_id && String(el.element_id).trim()) out.element_id = String(el.element_id).trim();
+
+	if (tag === 'column_set') {
+		out.tag = 'column_set';
+		if (el.flex_mode) out.flex_mode = el.flex_mode;
+		if (el.horizontal_spacing) out.horizontal_spacing = el.horizontal_spacing;
+		if (el.horizontal_align) out.horizontal_align = el.horizontal_align;
+		if (el.margin) out.margin = el.margin;
+		if (el.background_style) out.background_style = el.background_style;
+		const rawColumns = toArray(el.columns as Array<Record<string, unknown>> | undefined);
+		out.columns = rawColumns.map((col) => {
+			const column: Record<string, unknown> = { tag: 'column' };
+			if (col.column_width) column.width = col.column_width;
+			if (col.column_weight != null) column.weight = Number(col.column_weight) || 1;
+			if (col.vertical_align) column.vertical_align = col.vertical_align;
+			if (col.vertical_spacing) column.vertical_spacing = col.vertical_spacing;
+			if (col.direction) column.direction = col.direction;
+			if (col.padding) column.padding = col.padding;
+			if (col.margin) column.margin = col.margin;
+			if (col.background_style) column.background_style = col.background_style;
+			column.elements = buildCard2Elements(col.column_elements as Array<Record<string, unknown>> | undefined);
+			return column;
+		});
+		return out;
+	}
+
+	if (tag === 'interactive_container') {
+		out.tag = 'interactive_container';
+		if (el.container_width) out.width = el.container_width;
+		if (el.direction) out.direction = el.direction;
+		if (el.horizontal_spacing) out.horizontal_spacing = el.horizontal_spacing;
+		if (el.horizontal_align) out.horizontal_align = el.horizontal_align;
+		if (el.vertical_align) out.vertical_align = el.vertical_align;
+		if (el.vertical_spacing) out.vertical_spacing = el.vertical_spacing;
+		if (el.background_style) out.background_style = el.background_style;
+		if (el.has_border != null) out.has_border = Boolean(el.has_border);
+		if (el.border_color) out.border_color = el.border_color;
+		if (el.padding) out.padding = el.padding;
+		if (el.corner_radius) out.corner_radius = el.corner_radius;
+		const behaviors: Record<string, unknown>[] = [];
+		if (el.action_type === 'open_url' && el.action_url) {
+			behaviors.push({
+				type: 'open_url',
+				default_url: el.action_url,
+				pc_url: el.action_pc_url || el.action_url,
+				ios_url: el.action_ios_url || el.action_url,
+				android_url: el.action_android_url || el.action_url,
+			});
+		}
+		if (el.action_type === 'callback' && el.callback_value != null) {
+			try {
+				const value = typeof el.callback_value === 'string' ? JSON.parse(el.callback_value as string) : el.callback_value;
+				behaviors.push({ type: 'callback', value });
+			} catch {
+				behaviors.push({ type: 'callback', value: {} });
+			}
+		}
+		if (behaviors.length) out.behaviors = behaviors;
+		out.elements = buildCard2Elements(el.container_elements as Array<Record<string, unknown>> | undefined);
+		return out;
+	}
+
+	if (tag === 'collapsible_panel') {
+		out.tag = 'collapsible_panel';
+		if (el.panel_expanded != null) out.expanded = Boolean(el.panel_expanded);
+		if (el.panel_header_title != null && String(el.panel_header_title).trim()) {
+			const header: Record<string, unknown> = {
+				title: { tag: 'plain_text', content: String(el.panel_header_title).trim() },
+			};
+			if (el.panel_header_background_color) header.background_color = el.panel_header_background_color;
+			out.header = header;
+		}
+		if (el.panel_background_color) out.background_color = el.panel_background_color;
+		if (el.panel_border_color || el.panel_border_corner_radius) {
+			const border: Record<string, unknown> = {};
+			if (el.panel_border_color) border.color = el.panel_border_color;
+			if (el.panel_border_corner_radius) border.corner_radius = el.panel_border_corner_radius;
+			out.border = border;
+		}
+		out.elements = buildCard2Elements(el.container_elements as Array<Record<string, unknown>> | undefined);
+		return out;
+	}
+
+	if (tag === 'form') {
+		out.tag = 'form';
+		if (el.form_name) out.name = String(el.form_name);
+		out.elements = buildCard2FormElements(el.container_elements as Array<Record<string, unknown>> | undefined);
+		return out;
+	}
+
+	// 简单类型
+	return buildCard2SimpleElement(el);
 }
 
 function buildPostContent(paragraphs: Array<{ elements?: Array<Record<string, unknown>> | Record<string, Record<string, unknown>> }>): unknown[][] {
@@ -128,6 +336,62 @@ function buildRequestBody(
 			} catch {
 				card = {};
 			}
+			return { msg_type: 'interactive', card };
+		}
+		if (cardMode === 'form') {
+			// Card JSON 2.0 表单配置
+			const card: Record<string, unknown> = { schema: '2.0' };
+			const config: Record<string, unknown> = { update_multi: true };
+			if (params.card2_config_summary != null && String(params.card2_config_summary).trim() !== '') {
+				config.summary = { content: String(params.card2_config_summary).trim() };
+			}
+			if (params.card2_config_width_mode) {
+				config.width_mode = params.card2_config_width_mode;
+			}
+			if (params.card2_config_enable_forward !== undefined) {
+				config.enable_forward = Boolean(params.card2_config_enable_forward);
+			}
+			card.config = config;
+
+			const cardLink: Record<string, string> = {};
+			if (params.card2_card_link_url) cardLink.url = String(params.card2_card_link_url);
+			if (params.card2_card_link_pc_url) cardLink.pc_url = String(params.card2_card_link_pc_url);
+			if (params.card2_card_link_ios_url) cardLink.ios_url = String(params.card2_card_link_ios_url);
+			if (params.card2_card_link_android_url) cardLink.android_url = String(params.card2_card_link_android_url);
+			if (Object.keys(cardLink).length) card.card_link = cardLink;
+
+			const headerTitle = (params.card2_header_title as string) || '';
+			if (headerTitle) {
+				const header: Record<string, unknown> = {
+					title: { tag: 'plain_text', content: headerTitle },
+				};
+				if (params.card2_header_subtitle) {
+					header.subtitle = {
+						tag: 'plain_text',
+						content: String(params.card2_header_subtitle),
+					};
+				}
+				if (params.card2_header_template && params.card2_header_template !== 'default') {
+					header.template = params.card2_header_template;
+				}
+				card.header = header;
+			}
+
+			const body: Record<string, unknown> = {
+				direction: params.card2_body_direction || 'vertical',
+			};
+			if (params.card2_body_padding) body.padding = String(params.card2_body_padding);
+			const rawElements = params.card2_body_elements;
+			const elementsArr = toArray(
+				Array.isArray(rawElements)
+					? rawElements
+					: rawElements && typeof rawElements === 'object'
+						? (rawElements as Record<string, Record<string, unknown>>)
+						: [],
+			) as Array<Record<string, unknown>>;
+			body.elements = elementsArr.filter((el) => el?.elementType).map(buildCard2Element);
+			if ((body.elements as unknown[]).length === 0) body.elements = [{ tag: 'plain_text', content: ' ' }];
+			card.body = body;
 			return { msg_type: 'interactive', card };
 		}
 		// Simple card: header + one div (lark_md) + optional action button
@@ -376,6 +640,427 @@ const properties: INodeProperties[] = [
 			show: { messageType: ['interactive'], cardMode: ['simple'] } as { messageType: string[]; cardMode: string[] },
 		},
 	},
+	// --- 卡片 2.0 表单 ---
+	{
+		displayName: '摘要（聊天栏预览文案）',
+		name: 'card2_config_summary',
+		type: 'string',
+		default: '',
+		displayOptions: { show: showCardForm },
+		description: 'Config.summary.content，自定义聊天栏消息预览文案',
+	},
+	{
+		displayName: '卡片宽度',
+		name: 'card2_config_width_mode',
+		type: 'options',
+		options: card2WidthModeOptions,
+		default: 'default',
+		displayOptions: { show: showCardForm },
+	},
+	{
+		displayName: '允许转发',
+		name: 'card2_config_enable_forward',
+		type: 'boolean',
+		default: true,
+		displayOptions: { show: showCardForm },
+	},
+	{
+		displayName: '卡片整体跳转链接',
+		name: 'card2_card_link_url',
+		type: 'string',
+		default: '',
+		displayOptions: { show: showCardForm },
+		description: '点击卡片跳转的默认链接',
+	},
+	{
+		displayName: 'PC 端链接',
+		name: 'card2_card_link_pc_url',
+		type: 'string',
+		default: '',
+		displayOptions: { show: showCardForm },
+	},
+	{
+		displayName: 'iOS 端链接',
+		name: 'card2_card_link_ios_url',
+		type: 'string',
+		default: '',
+		displayOptions: { show: showCardForm },
+	},
+	{
+		displayName: 'Android 端链接',
+		name: 'card2_card_link_android_url',
+		type: 'string',
+		default: '',
+		displayOptions: { show: showCardForm },
+	},
+	{
+		displayName: '标题',
+		name: 'card2_header_title',
+		type: 'string',
+		default: '',
+		displayOptions: { show: showCardForm },
+	},
+	{
+		displayName: '副标题',
+		name: 'card2_header_subtitle',
+		type: 'string',
+		default: '',
+		displayOptions: { show: showCardForm },
+	},
+	{
+		displayName: '标题主题',
+		name: 'card2_header_template',
+		type: 'options',
+		options: card2HeaderTemplateOptions,
+		default: 'default',
+		displayOptions: { show: showCardForm },
+	},
+	{
+		displayName: '正文排列方向',
+		name: 'card2_body_direction',
+		type: 'options',
+		options: [
+			{ name: '垂直', value: 'vertical' },
+			{ name: '水平', value: 'horizontal' },
+		],
+		default: 'vertical',
+		displayOptions: { show: showCardForm },
+	},
+	{
+		displayName: '正文内边距',
+		name: 'card2_body_padding',
+		type: 'string',
+		default: '',
+		placeholder: '12px 8px 12px 8px',
+		displayOptions: { show: showCardForm },
+	},
+	{
+		displayName: '正文元素',
+		name: 'card2_body_elements',
+		type: 'collection',
+		typeOptions: {
+			multipleValues: true,
+			multipleValueButtonText: '添加元素',
+		},
+		displayOptions: { show: showCardForm },
+		default: {},
+		options: [
+			{
+				displayName: '按钮链接',
+				name: 'button_url',
+				type: 'string',
+				default: '',
+				displayOptions: { show: { elementType: ['button'] } },
+			},
+			{
+				displayName: '按钮文字',
+				name: 'button_text',
+				type: 'string',
+				default: '',
+				displayOptions: { show: { elementType: ['button'] } },
+			},
+			{
+				displayName: '按钮样式',
+				name: 'button_type',
+				type: 'options',
+				options: [
+					{ name: 'Default', value: 'default' },
+					{ name: 'Primary', value: 'primary' },
+					{ name: 'Danger', value: 'danger' },
+				],
+				default: 'default',
+				displayOptions: { show: { elementType: ['button'] } },
+			},
+			{
+				displayName: '内容',
+				name: 'content',
+				type: 'string',
+				typeOptions: { rows: 2 },
+				default: '',
+				displayOptions: { show: { elementType: ['plain_text', 'markdown'] } },
+			},
+			{
+				displayName: '图片 Key',
+				name: 'img_key',
+				type: 'string',
+				default: '',
+				displayOptions: { show: { elementType: ['img'] } },
+			},
+			{
+				displayName: '元素 ID',
+				name: 'element_id',
+				type: 'string',
+				default: '',
+				description: 'Element_id，同一卡片内唯一，字母/数字/下划线，以字母开头，最多 20 字符',
+			},
+			{
+				displayName: '元素类型',
+				name: 'elementType',
+				type: 'options',
+				options: card2BodyElementTypeOptions,
+				default: 'plain_text',
+			},
+			// --- 分栏 column_set ---
+			{
+				displayName: '列配置',
+				name: 'columns',
+				type: 'collection',
+				typeOptions: { multipleValues: true, multipleValueButtonText: '添加列' },
+				default: {},
+				displayOptions: { show: { elementType: ['column_set'] } },
+				options: [
+					{
+						displayName: '列内元素',
+						name: 'column_elements',
+						type: 'collection',
+						typeOptions: { multipleValues: true, multipleValueButtonText: '添加元素' },
+						default: {},
+						options: [
+							{ displayName: '内容', name: 'content', type: 'string', typeOptions: { rows: 2 }, default: '', displayOptions: { show: { col_elType: ['plain_text', 'markdown'] } } },
+							{ displayName: '元素类型', name: 'col_elType', type: 'options', options: [{ name: 'Button', value: 'button' }, { name: 'Hr', value: 'hr' }, { name: 'Img', value: 'img' }, { name: 'Markdown', value: 'markdown' }, { name: 'Plain_text', value: 'plain_text' }], default: 'plain_text' },
+							{ displayName: '按钮链接', name: 'button_url', type: 'string', default: '', displayOptions: { show: { col_elType: ['button'] } } },
+							{ displayName: '按钮文字', name: 'button_text', type: 'string', default: '', displayOptions: { show: { col_elType: ['button'] } } },
+							{ displayName: '按钮样式', name: 'button_type', type: 'options', options: [{ name: 'Default', value: 'default' }, { name: 'Primary', value: 'primary' }, { name: 'Danger', value: 'danger' }], default: 'default', displayOptions: { show: { col_elType: ['button'] } } },
+							{ displayName: '图片 Key', name: 'img_key', type: 'string', default: '', displayOptions: { show: { col_elType: ['img'] } } },
+						],
+					},
+					{ displayName: '列宽', name: 'column_width', type: 'options', options: [{ name: 'Auto', value: 'auto' }, { name: 'Weighted', value: 'weighted' }], default: 'weighted' },
+					{ displayName: '列权重', name: 'column_weight', type: 'number', typeOptions: { minValue: 1, maxValue: 5 }, default: 1 },
+					{ displayName: '列垂直对齐', name: 'vertical_align', type: 'options', options: [{ name: 'Bottom', value: 'bottom' }, { name: 'Center', value: 'center' }, { name: 'Top', value: 'top' }], default: 'top' },
+					{ displayName: '列垂直间距', name: 'vertical_spacing', type: 'options', options: [{ name: 'Extra_large (16px)', value: 'extra_large' }, { name: 'Large (12px)', value: 'large' }, { name: 'Medium (8px)', value: 'medium' }, { name: 'Small (4px)', value: 'small' }], default: 'medium' },
+					{ displayName: '列排列方向', name: 'direction', type: 'options', options: [{ name: '水平', value: 'horizontal' }, { name: '垂直', value: 'vertical' }], default: 'vertical' },
+					{ displayName: '列内边距', name: 'padding', type: 'string', default: '', placeholder: '8px' },
+					{ displayName: '列外边距', name: 'margin', type: 'string', default: '', placeholder: '4px 0' },
+					{ displayName: '列背景样式', name: 'background_style', type: 'options', options: [{ name: 'Default', value: 'default' }, { name: 'Grey', value: 'grey' }], default: 'default' },
+				],
+			},
+			{
+				displayName: '分栏背景样式',
+				name: 'background_style',
+				type: 'options',
+				options: [{ name: 'Default', value: 'default' }, { name: 'Grey', value: 'grey' }],
+				default: 'default',
+				displayOptions: { show: { elementType: ['column_set'] } },
+			},
+			{
+				displayName: 'Flex 模式',
+				name: 'flex_mode',
+				type: 'options',
+				options: [
+					{ name: 'Bisect', value: 'bisect' },
+					{ name: 'Flow', value: 'flow' },
+					{ name: 'None', value: 'none' },
+					{ name: 'Stretch', value: 'stretch' },
+					{ name: 'Trisect', value: 'trisect' },
+				],
+				default: 'none',
+				displayOptions: { show: { elementType: ['column_set'] } },
+			},
+			{
+				displayName: '水平对齐',
+				name: 'horizontal_align',
+				type: 'options',
+				options: [{ name: 'Left', value: 'left' }, { name: 'Center', value: 'center' }, { name: 'Right', value: 'right' }],
+				default: 'left',
+				displayOptions: { show: { elementType: ['column_set', 'interactive_container'] } },
+			},
+			{
+				displayName: '水平间距',
+				name: 'horizontal_spacing',
+				type: 'options',
+				options: [
+					{ name: 'Small (4px)', value: 'small' },
+					{ name: 'Medium (8px)', value: 'medium' },
+					{ name: 'Large (12px)', value: 'large' },
+					{ name: 'Extra_large (16px)', value: 'extra_large' },
+				],
+				default: 'medium',
+				displayOptions: { show: { elementType: ['column_set', 'interactive_container'] } },
+			},
+			{
+				displayName: '外边距',
+				name: 'margin',
+				type: 'string',
+				default: '',
+				placeholder: '4px 0px 4px 0px',
+				displayOptions: { show: { elementType: ['column_set'] } },
+			},
+			// --- 交互容器 interactive_container ---
+			{
+				displayName: '容器内元素',
+				name: 'container_elements',
+				type: 'collection',
+				typeOptions: { multipleValues: true, multipleValueButtonText: '添加元素' },
+				default: {},
+				displayOptions: { show: { elementType: ['interactive_container', 'collapsible_panel', 'form'] } },
+				options: [
+					{ displayName: '按钮链接', name: 'button_url', type: 'string', default: '', displayOptions: { show: { c_elType: ['button'] } } },
+					{ displayName: '按钮文字', name: 'button_text', type: 'string', default: '', displayOptions: { show: { c_elType: ['button'] } } },
+					{ displayName: '按钮样式', name: 'button_type', type: 'options', options: [{ name: 'Default', value: 'default' }, { name: 'Primary', value: 'primary' }, { name: 'Danger', value: 'danger' }], default: 'default', displayOptions: { show: { c_elType: ['button'] } } },
+					{ displayName: '内容', name: 'content', type: 'string', typeOptions: { rows: 2 }, default: '', displayOptions: { show: { c_elType: ['plain_text', 'markdown'] } } },
+					{ displayName: '元素类型', name: 'c_elType', type: 'options', options: [{ name: 'Button', value: 'button' }, { name: 'Hr', value: 'hr' }, { name: 'Img', value: 'img' }, { name: 'Markdown', value: 'markdown' }, { name: 'Plain_text', value: 'plain_text' }], default: 'plain_text' },
+					{ displayName: '图片 Key', name: 'img_key', type: 'string', default: '', displayOptions: { show: { c_elType: ['img'] } } },
+					{ displayName: '表单按钮名称', name: 'form_button_name', type: 'string', default: '', description: '表单内按钮唯一标识，提交时回传', displayOptions: { show: { elementType: ['form'], c_elType: ['button'] } } },
+					{ displayName: '表单操作类型', name: 'form_action_type', type: 'options', options: [{ name: '提交 (Submit)', value: 'submit' }, { name: '重置 (Reset)', value: 'reset' }], default: 'submit', description: '表单内至少需一个提交按钮', displayOptions: { show: { elementType: ['form'], c_elType: ['button'] } } },
+				],
+			},
+			{
+				displayName: '交互类型',
+				name: 'action_type',
+				type: 'options',
+				options: [
+					{ name: '打开链接 (Open_url)', value: 'open_url' },
+					{ name: '回传 (Callback)', value: 'callback' },
+				],
+				default: 'open_url',
+				displayOptions: { show: { elementType: ['interactive_container'] } },
+			},
+			{
+				displayName: '跳转链接',
+				name: 'action_url',
+				type: 'string',
+				default: '',
+				displayOptions: { show: { elementType: ['interactive_container'], action_type: ['open_url'] } },
+			},
+			{
+				displayName: 'Callback 回传值 (JSON)',
+				name: 'callback_value',
+				type: 'string',
+				default: '{}',
+				placeholder: '{"key":"value"}',
+				displayOptions: { show: { elementType: ['interactive_container'], action_type: ['callback'] } },
+			},
+			{
+				displayName: '表单名称',
+				name: 'form_name',
+				type: 'string',
+				default: '',
+				description: 'Form 容器的唯一标识，同一卡片内唯一',
+				displayOptions: { show: { elementType: ['form'] } },
+			},
+			{
+				displayName: '面板标题',
+				name: 'panel_header_title',
+				type: 'string',
+				default: '',
+				displayOptions: { show: { elementType: ['collapsible_panel'] } },
+			},
+			{
+				displayName: '默认展开',
+				name: 'panel_expanded',
+				type: 'boolean',
+				default: false,
+				displayOptions: { show: { elementType: ['collapsible_panel'] } },
+			},
+			{
+				displayName: '面板背景色',
+				name: 'panel_background_color',
+				type: 'options',
+				options: [{ name: 'Default', value: 'default' }, { name: 'Grey', value: 'grey' }],
+				default: 'default',
+				displayOptions: { show: { elementType: ['collapsible_panel'] } },
+			},
+			{
+				displayName: '标题区背景色',
+				name: 'panel_header_background_color',
+				type: 'options',
+				options: [{ name: 'Default', value: 'default' }, { name: 'Grey', value: 'grey' }, { name: 'Yellow', value: 'yellow' }],
+				default: 'default',
+				displayOptions: { show: { elementType: ['collapsible_panel'] } },
+			},
+			{
+				displayName: '边框颜色',
+				name: 'panel_border_color',
+				type: 'options',
+				options: [{ name: 'Grey', value: 'grey' }],
+				default: 'grey',
+				displayOptions: { show: { elementType: ['collapsible_panel'] } },
+			},
+			{
+				displayName: '边框圆角',
+				name: 'panel_border_corner_radius',
+				type: 'string',
+				default: '5px',
+				placeholder: '5px',
+				displayOptions: { show: { elementType: ['collapsible_panel'] } },
+			},
+			{
+				displayName: '垂直对齐',
+				name: 'vertical_align',
+				type: 'options',
+				options: [{ name: 'Top', value: 'top' }, { name: 'Center', value: 'center' }, { name: 'Bottom', value: 'bottom' }],
+				default: 'top',
+				displayOptions: { show: { elementType: ['interactive_container'] } },
+			},
+			{
+				displayName: '垂直间距',
+				name: 'vertical_spacing',
+				type: 'options',
+				options: [
+					{ name: 'Small (4px)', value: 'small' },
+					{ name: 'Medium (8px)', value: 'medium' },
+					{ name: 'Large (12px)', value: 'large' },
+					{ name: 'Extra_large (16px)', value: 'extra_large' },
+				],
+				default: 'medium',
+				displayOptions: { show: { elementType: ['interactive_container'] } },
+			},
+			{
+				displayName: '背景样式',
+				name: 'background_style',
+				type: 'options',
+				options: [{ name: 'Default', value: 'default' }, { name: 'Grey', value: 'grey' }],
+				default: 'default',
+				displayOptions: { show: { elementType: ['interactive_container'] } },
+			},
+			{
+				displayName: '显示边框',
+				name: 'has_border',
+				type: 'boolean',
+				default: true,
+				displayOptions: { show: { elementType: ['interactive_container'] } },
+			},
+			{
+				displayName: '边框颜色',
+				name: 'border_color',
+				type: 'options',
+				options: [{ name: 'Grey', value: 'grey' }],
+				default: 'grey',
+				displayOptions: { show: { elementType: ['interactive_container'] } },
+			},
+			{
+				displayName: '内边距',
+				name: 'padding',
+				type: 'string',
+				default: '4px 12px 4px 12px',
+				placeholder: '4px 12px 4px 12px',
+				displayOptions: { show: { elementType: ['interactive_container'] } },
+			},
+			{
+				displayName: '圆角',
+				name: 'corner_radius',
+				type: 'string',
+				default: '8px',
+				displayOptions: { show: { elementType: ['interactive_container'] } },
+			},
+			{
+				displayName: '容器宽度',
+				name: 'container_width',
+				type: 'options',
+				options: [{ name: 'Fill', value: 'fill' }, { name: 'Auto', value: 'auto' }],
+				default: 'fill',
+				displayOptions: { show: { elementType: ['interactive_container'] } },
+			},
+			{
+				displayName: '排列方向',
+				name: 'direction',
+				type: 'options',
+				options: [{ name: '垂直', value: 'vertical' }, { name: '水平', value: 'horizontal' }],
+				default: 'vertical',
+				displayOptions: { show: { elementType: ['interactive_container'] } },
+			},
+		],
+	},
 	{
 		displayName: '卡片 JSON',
 		name: 'cardJson',
@@ -428,6 +1113,19 @@ export class FeishuCustomBot implements INodeType {
 					cardButtonText: this.getNodeParameter('cardButtonText', i, ''),
 					cardButtonUrl: this.getNodeParameter('cardButtonUrl', i, ''),
 					cardJson: this.getNodeParameter('cardJson', i, ''),
+					card2_config_summary: this.getNodeParameter('card2_config_summary', i, ''),
+					card2_config_width_mode: this.getNodeParameter('card2_config_width_mode', i, 'default'),
+					card2_config_enable_forward: this.getNodeParameter('card2_config_enable_forward', i, true),
+					card2_card_link_url: this.getNodeParameter('card2_card_link_url', i, ''),
+					card2_card_link_pc_url: this.getNodeParameter('card2_card_link_pc_url', i, ''),
+					card2_card_link_ios_url: this.getNodeParameter('card2_card_link_ios_url', i, ''),
+					card2_card_link_android_url: this.getNodeParameter('card2_card_link_android_url', i, ''),
+					card2_header_title: this.getNodeParameter('card2_header_title', i, ''),
+					card2_header_subtitle: this.getNodeParameter('card2_header_subtitle', i, ''),
+					card2_header_template: this.getNodeParameter('card2_header_template', i, 'default'),
+					card2_body_direction: this.getNodeParameter('card2_body_direction', i, 'vertical'),
+					card2_body_padding: this.getNodeParameter('card2_body_padding', i, ''),
+					card2_body_elements: this.getNodeParameter('card2_body_elements', i, []),
 				};
 
 				let body = buildRequestBody(messageType, params) as Record<string, unknown>;
