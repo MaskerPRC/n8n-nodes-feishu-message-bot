@@ -64,6 +64,8 @@ const card2BodyElementTypeOptions = [
 	{ name: '按钮 (Button)', value: 'button' },
 	{ name: '图片 (Img)', value: 'img' },
 	{ name: '分割线 (Hr)', value: 'hr' },
+	{ name: '人员 (Person)', value: 'person' },
+	{ name: '人员列表 (Person_list)', value: 'person_list' },
 	{ name: '分栏 (Column_set)', value: 'column_set' },
 	{ name: '交互容器 (Interactive_container)', value: 'interactive_container' },
 	{ name: '折叠面板 (Collapsible_panel)', value: 'collapsible_panel' },
@@ -83,7 +85,7 @@ function toArray<T>(v: T[] | Record<string, T> | undefined): T[] {
 		.map((k) => (v as Record<string, T>)[k]);
 }
 
-/** 构建卡片 2.0 单个简单元素（plain_text / markdown / button / img / hr），支持 elementType / col_elType / c_elType */
+/** 构建卡片 2.0 单个简单元素（含 person / person_list），支持 elementType / col_elType / c_elType */
 function buildCard2SimpleElement(el: Record<string, unknown>): Record<string, unknown> {
 	const tag = (el.elementType ?? el.col_elType ?? el.c_elType) as string;
 	const out: Record<string, unknown> = {};
@@ -112,6 +114,44 @@ function buildCard2SimpleElement(el: Record<string, unknown>): Record<string, un
 	}
 	if (tag === 'hr') {
 		out.tag = 'hr';
+		return out;
+	}
+	if (tag === 'person') {
+		out.tag = 'person';
+		out.user_id = el.user_id ?? '';
+		if (el.person_size) out.size = el.person_size;
+		if (el.person_show_avatar != null) out.show_avatar = Boolean(el.person_show_avatar);
+		if (el.person_show_name != null) out.show_name = Boolean(el.person_show_name);
+		if (el.person_style) out.style = el.person_style;
+		if (el.person_margin && String(el.person_margin).trim()) out.margin = String(el.person_margin).trim();
+		return out;
+	}
+	if (tag === 'person_list') {
+		out.tag = 'person_list';
+		const rawPersons = toArray(el.person_list_ids as Array<Record<string, unknown>> | Record<string, Record<string, unknown>> | undefined);
+		out.persons = rawPersons
+			.filter((p) => p && (p.id != null && String(p.id).trim() !== ''))
+			.map((p) => ({ id: String(p.id).trim() }));
+		if (el.person_list_size) out.size = el.person_list_size;
+		if (el.person_list_show_avatar != null) out.show_avatar = Boolean(el.person_list_show_avatar);
+		if (el.person_list_show_name != null) out.show_name = Boolean(el.person_list_show_name);
+		if (el.person_list_lines != null && Number(el.person_list_lines) > 0) out.lines = Number(el.person_list_lines);
+		if (el.person_list_drop_invalid != null) out.drop_invalid_user_id = Boolean(el.person_list_drop_invalid);
+		if (el.person_list_margin && String(el.person_list_margin).trim()) out.margin = String(el.person_list_margin).trim();
+		if (el.person_list_icon_token && String(el.person_list_icon_token).trim()) {
+			const iconObj: Record<string, unknown> = {
+				tag: 'standard_icon',
+				token: String(el.person_list_icon_token).trim(),
+			};
+			if (el.person_list_icon_color && String(el.person_list_icon_color).trim())
+				iconObj.color = String(el.person_list_icon_color).trim();
+			out.icon = iconObj;
+		} else if (el.person_list_icon_img_key && String(el.person_list_icon_img_key).trim()) {
+			out.icon = {
+				tag: 'custom_icon',
+				img_key: String(el.person_list_icon_img_key).trim(),
+			};
+		}
 		return out;
 	}
 	return out;
@@ -800,6 +840,154 @@ const properties: INodeProperties[] = [
 				options: card2BodyElementTypeOptions,
 				default: 'plain_text',
 			},
+			// --- 人员 person ---
+			{
+				displayName: '用户 ID',
+				name: 'user_id',
+				type: 'string',
+				default: '',
+				description: '人员的 Open ID / User ID / Union ID',
+				displayOptions: { show: { elementType: ['person'] } },
+			},
+			{
+				displayName: '头像尺寸',
+				name: 'person_size',
+				type: 'options',
+				options: [
+					{ name: 'Extra_small', value: 'extra_small' },
+					{ name: 'Large', value: 'large' },
+					{ name: 'Medium', value: 'medium' },
+					{ name: 'Small', value: 'small' },
+				],
+				default: 'medium',
+				displayOptions: { show: { elementType: ['person'] } },
+			},
+			{
+				displayName: '显示头像',
+				name: 'person_show_avatar',
+				type: 'boolean',
+				default: true,
+				displayOptions: { show: { elementType: ['person'] } },
+			},
+			{
+				displayName: '显示用户名',
+				name: 'person_show_name',
+				type: 'boolean',
+				default: false,
+				displayOptions: { show: { elementType: ['person'] } },
+			},
+			{
+				displayName: '展示样式',
+				name: 'person_style',
+				type: 'options',
+				options: [
+					{ name: 'Capsule (胶囊)', value: 'capsule' },
+					{ name: 'Normal (默认)', value: 'normal' },
+				],
+				default: 'normal',
+				displayOptions: { show: { elementType: ['person'] } },
+			},
+			{
+				displayName: '外边距',
+				name: 'person_margin',
+				type: 'string',
+				default: '',
+				placeholder: '0px 0px 0px 0px',
+				displayOptions: { show: { elementType: ['person'] } },
+			},
+			// --- 人员列表 person_list ---
+			{
+				displayName: '人员列表',
+				name: 'person_list_ids',
+				type: 'collection',
+				typeOptions: { multipleValues: true, multipleValueButtonText: '添加人员' },
+				default: {},
+				displayOptions: { show: { elementType: ['person_list'] } },
+				options: [
+					{
+						displayName: '用户 ID',
+						name: 'id',
+						type: 'string',
+						default: '',
+						description: 'Open ID / User ID / Union ID',
+					},
+				],
+			},
+			{
+				displayName: '头像尺寸',
+				name: 'person_list_size',
+				type: 'options',
+				options: [
+					{ name: 'Extra_small', value: 'extra_small' },
+					{ name: 'Large', value: 'large' },
+					{ name: 'Medium', value: 'medium' },
+					{ name: 'Small', value: 'small' },
+				],
+				default: 'medium',
+				displayOptions: { show: { elementType: ['person_list'] } },
+			},
+			{
+				displayName: '显示头像',
+				name: 'person_list_show_avatar',
+				type: 'boolean',
+				default: true,
+				displayOptions: { show: { elementType: ['person_list'] } },
+			},
+			{
+				displayName: '显示用户名',
+				name: 'person_list_show_name',
+				type: 'boolean',
+				default: true,
+				displayOptions: { show: { elementType: ['person_list'] } },
+			},
+			{
+				displayName: '最大显示行数',
+				name: 'person_list_lines',
+				type: 'number',
+				typeOptions: { minValue: 1 },
+				default: 0,
+				description: '0 表示不限制',
+				displayOptions: { show: { elementType: ['person_list'] } },
+			},
+			{
+				displayName: '忽略无效用户 ID',
+				name: 'person_list_drop_invalid',
+				type: 'boolean',
+				default: false,
+				displayOptions: { show: { elementType: ['person_list'] } },
+			},
+			{
+				displayName: '外边距',
+				name: 'person_list_margin',
+				type: 'string',
+				default: '',
+				placeholder: '0px 0px 0px 0px',
+				displayOptions: { show: { elementType: ['person_list'] } },
+			},
+			{
+				displayName: '前缀图标 Token',
+				name: 'person_list_icon_token',
+				type: 'string',
+				default: '',
+				description: '图标库 token，与自定义图片二选一',
+				displayOptions: { show: { elementType: ['person_list'] } },
+			},
+			{
+				displayName: '前缀图标颜色',
+				name: 'person_list_icon_color',
+				type: 'string',
+				default: '',
+				placeholder: 'blue',
+				displayOptions: { show: { elementType: ['person_list'] } },
+			},
+			{
+				displayName: '前缀图标图片 Key',
+				name: 'person_list_icon_img_key',
+				type: 'string',
+				default: '',
+				description: '自定义图标时使用，与 Token 二选一',
+				displayOptions: { show: { elementType: ['person_list'] } },
+			},
 			// --- 分栏 column_set ---
 			{
 				displayName: '列配置',
@@ -817,11 +1005,20 @@ const properties: INodeProperties[] = [
 						default: {},
 						options: [
 							{ displayName: '内容', name: 'content', type: 'string', typeOptions: { rows: 2 }, default: '', displayOptions: { show: { col_elType: ['plain_text', 'markdown'] } } },
-							{ displayName: '元素类型', name: 'col_elType', type: 'options', options: [{ name: 'Button', value: 'button' }, { name: 'Hr', value: 'hr' }, { name: 'Img', value: 'img' }, { name: 'Markdown', value: 'markdown' }, { name: 'Plain_text', value: 'plain_text' }], default: 'plain_text' },
+							{ displayName: '元素类型', name: 'col_elType', type: 'options', options: [{ name: 'Button', value: 'button' }, { name: 'Hr', value: 'hr' }, { name: 'Img', value: 'img' }, { name: 'Markdown', value: 'markdown' }, { name: 'Person', value: 'person' }, { name: 'Person_list', value: 'person_list' }, { name: 'Plain_text', value: 'plain_text' }], default: 'plain_text' },
 							{ displayName: '按钮链接', name: 'button_url', type: 'string', default: '', displayOptions: { show: { col_elType: ['button'] } } },
 							{ displayName: '按钮文字', name: 'button_text', type: 'string', default: '', displayOptions: { show: { col_elType: ['button'] } } },
 							{ displayName: '按钮样式', name: 'button_type', type: 'options', options: [{ name: 'Default', value: 'default' }, { name: 'Primary', value: 'primary' }, { name: 'Danger', value: 'danger' }], default: 'default', displayOptions: { show: { col_elType: ['button'] } } },
 							{ displayName: '图片 Key', name: 'img_key', type: 'string', default: '', displayOptions: { show: { col_elType: ['img'] } } },
+							{ displayName: '用户 ID', name: 'user_id', type: 'string', default: '', displayOptions: { show: { col_elType: ['person'] } } },
+							{ displayName: '头像尺寸', name: 'person_size', type: 'options', options: [{ name: 'Extra_small', value: 'extra_small' }, { name: 'Large', value: 'large' }, { name: 'Medium', value: 'medium' }, { name: 'Small', value: 'small' }], default: 'medium', displayOptions: { show: { col_elType: ['person'] } } },
+							{ displayName: '显示头像', name: 'person_show_avatar', type: 'boolean', default: true, displayOptions: { show: { col_elType: ['person'] } } },
+							{ displayName: '显示用户名', name: 'person_show_name', type: 'boolean', default: false, displayOptions: { show: { col_elType: ['person'] } } },
+							{ displayName: '展示样式', name: 'person_style', type: 'options', options: [{ name: 'Capsule (胶囊)', value: 'capsule' }, { name: 'Normal (默认)', value: 'normal' }], default: 'normal', displayOptions: { show: { col_elType: ['person'] } } },
+							{ displayName: '人员列表', name: 'person_list_ids', type: 'collection', typeOptions: { multipleValues: true, multipleValueButtonText: '添加人员' }, default: {}, displayOptions: { show: { col_elType: ['person_list'] } }, options: [{ displayName: '用户 ID', name: 'id', type: 'string', default: '' }] },
+							{ displayName: '列表头像尺寸', name: 'person_list_size', type: 'options', options: [{ name: 'Extra_small', value: 'extra_small' }, { name: 'Large', value: 'large' }, { name: 'Medium', value: 'medium' }, { name: 'Small', value: 'small' }], default: 'medium', displayOptions: { show: { col_elType: ['person_list'] } } },
+							{ displayName: '列表显示头像', name: 'person_list_show_avatar', type: 'boolean', default: true, displayOptions: { show: { col_elType: ['person_list'] } } },
+							{ displayName: '列表显示用户名', name: 'person_list_show_name', type: 'boolean', default: true, displayOptions: { show: { col_elType: ['person_list'] } } },
 						],
 					},
 					{ displayName: '列宽', name: 'column_width', type: 'options', options: [{ name: 'Auto', value: 'auto' }, { name: 'Weighted', value: 'weighted' }], default: 'weighted' },
@@ -898,8 +1095,17 @@ const properties: INodeProperties[] = [
 					{ displayName: '按钮文字', name: 'button_text', type: 'string', default: '', displayOptions: { show: { c_elType: ['button'] } } },
 					{ displayName: '按钮样式', name: 'button_type', type: 'options', options: [{ name: 'Default', value: 'default' }, { name: 'Primary', value: 'primary' }, { name: 'Danger', value: 'danger' }], default: 'default', displayOptions: { show: { c_elType: ['button'] } } },
 					{ displayName: '内容', name: 'content', type: 'string', typeOptions: { rows: 2 }, default: '', displayOptions: { show: { c_elType: ['plain_text', 'markdown'] } } },
-					{ displayName: '元素类型', name: 'c_elType', type: 'options', options: [{ name: 'Button', value: 'button' }, { name: 'Hr', value: 'hr' }, { name: 'Img', value: 'img' }, { name: 'Markdown', value: 'markdown' }, { name: 'Plain_text', value: 'plain_text' }], default: 'plain_text' },
+					{ displayName: '元素类型', name: 'c_elType', type: 'options', options: [{ name: 'Button', value: 'button' }, { name: 'Hr', value: 'hr' }, { name: 'Img', value: 'img' }, { name: 'Markdown', value: 'markdown' }, { name: 'Person', value: 'person' }, { name: 'Person_list', value: 'person_list' }, { name: 'Plain_text', value: 'plain_text' }], default: 'plain_text' },
 					{ displayName: '图片 Key', name: 'img_key', type: 'string', default: '', displayOptions: { show: { c_elType: ['img'] } } },
+					{ displayName: '用户 ID', name: 'user_id', type: 'string', default: '', displayOptions: { show: { c_elType: ['person'] } } },
+					{ displayName: '头像尺寸', name: 'person_size', type: 'options', options: [{ name: 'Extra_small', value: 'extra_small' }, { name: 'Large', value: 'large' }, { name: 'Medium', value: 'medium' }, { name: 'Small', value: 'small' }], default: 'medium', displayOptions: { show: { c_elType: ['person'] } } },
+					{ displayName: '显示头像', name: 'person_show_avatar', type: 'boolean', default: true, displayOptions: { show: { c_elType: ['person'] } } },
+					{ displayName: '显示用户名', name: 'person_show_name', type: 'boolean', default: false, displayOptions: { show: { c_elType: ['person'] } } },
+					{ displayName: '展示样式', name: 'person_style', type: 'options', options: [{ name: 'Capsule (胶囊)', value: 'capsule' }, { name: 'Normal (默认)', value: 'normal' }], default: 'normal', displayOptions: { show: { c_elType: ['person'] } } },
+					{ displayName: '人员列表', name: 'person_list_ids', type: 'collection', typeOptions: { multipleValues: true, multipleValueButtonText: '添加人员' }, default: {}, displayOptions: { show: { c_elType: ['person_list'] } }, options: [{ displayName: '用户 ID', name: 'id', type: 'string', default: '' }] },
+					{ displayName: '列表头像尺寸', name: 'person_list_size', type: 'options', options: [{ name: 'Extra_small', value: 'extra_small' }, { name: 'Large', value: 'large' }, { name: 'Medium', value: 'medium' }, { name: 'Small', value: 'small' }], default: 'medium', displayOptions: { show: { c_elType: ['person_list'] } } },
+					{ displayName: '列表显示头像', name: 'person_list_show_avatar', type: 'boolean', default: true, displayOptions: { show: { c_elType: ['person_list'] } } },
+					{ displayName: '列表显示用户名', name: 'person_list_show_name', type: 'boolean', default: true, displayOptions: { show: { c_elType: ['person_list'] } } },
 					{ displayName: '表单按钮名称', name: 'form_button_name', type: 'string', default: '', description: '表单内按钮唯一标识，提交时回传', displayOptions: { show: { elementType: ['form'], c_elType: ['button'] } } },
 					{ displayName: '表单操作类型', name: 'form_action_type', type: 'options', options: [{ name: '提交 (Submit)', value: 'submit' }, { name: '重置 (Reset)', value: 'reset' }], default: 'submit', description: '表单内至少需一个提交按钮', displayOptions: { show: { elementType: ['form'], c_elType: ['button'] } } },
 				],
