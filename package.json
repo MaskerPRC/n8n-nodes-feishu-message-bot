@@ -1,6 +1,6 @@
 {
 	"name": "n8n-nodes-feishu-message-bot",
-	"version": "0.1.8",
+	"version": "0.1.9",
 	"description": "n8n 节点：飞书自定义机器人 Webhook 消息推送",
 	"license": "MIT",
 	"homepage": "https://github.com/MaskerPRC/n8n-nodes-feishu-message-bot",
