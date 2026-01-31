@@ -1,9 +1,9 @@
 {
 	"name": "n8n-nodes-feishu-message-bot",
-	"version": "0.1.4",
+	"version": "0.1.6",
 	"description": "n8n 节点：飞书自定义机器人 Webhook 消息推送",
 	"license": "MIT",
-	"homepage": "https://github.com/n8n-io/n8n-nodes-starter",
+	"homepage": "https://github.com/MaskerPRC/n8n-nodes-feishu-message-bot",
 	"keywords": [
 		"n8n-community-node-package",
 		"n8n",
@@ -18,7 +18,7 @@
 	},
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/n8n-io/n8n-nodes-starter.git"
+		"url": "https://github.com/MaskerPRC/n8n-nodes-feishu-message-bot.git"
 	},
 	"scripts": {
 		"build": "n8n-node build",
@@ -49,5 +49,10 @@
 	},
 	"peerDependencies": {
 		"n8n-workflow": "*"
+	},
+	"release-it": {
+		"git": {
+			"requireBranch": "master"
+		}
 	}
 }
