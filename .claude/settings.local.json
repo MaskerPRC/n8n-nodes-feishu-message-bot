@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run build:*)",
+      "Bash(npm version:*)",
+      "Bash(npm publish:*)",
+      "Bash(npm run release:*)",
+      "Bash(npm run lint:*)",
+      "Bash(npm config set:*)",
+      "Bash(npm whoami:*)",
+      "Bash(npm cache clean:*)",
+      "Bash(npm config:*)",
+      "Bash(echo:*)"
+    ]
+  }
+}

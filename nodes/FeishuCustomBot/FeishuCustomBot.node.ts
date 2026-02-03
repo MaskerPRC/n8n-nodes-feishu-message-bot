@@ -59,7 +59,6 @@ const card2HeaderTemplateOptions = [
 ];
 
 const card2BodyElementTypeOptions = [
-	{ name: '纯文本 (Plain_text)', value: 'plain_text' },
 	{ name: '富文本 Markdown (Markdown)', value: 'markdown' },
 	{ name: '按钮 (Button)', value: 'button' },
 	{ name: '图片 (Img)', value: 'img' },
@@ -90,20 +89,15 @@ function buildCard2SimpleElement(el: Record<string, unknown>): Record<string, un
 	const tag = (el.elementType ?? el.col_elType ?? el.c_elType) as string;
 	const out: Record<string, unknown> = {};
 	if (el.element_id && String(el.element_id).trim()) out.element_id = String(el.element_id).trim();
-	if (tag === 'plain_text') {
-		out.tag = 'plain_text';
-		out.content = el.content ?? '';
-		return out;
-	}
-	if (tag === 'markdown') {
+	if (tag === 'plain_text' || tag === 'markdown') {
 		out.tag = 'markdown';
-		out.content = el.content ?? '';
+		out.content = String(el.content ?? '');
 		return out;
 	}
 	if (tag === 'button') {
 		out.tag = 'button';
-		out.text = { tag: 'plain_text', content: el.button_text ?? '' };
-		out.url = el.button_url ?? '';
+		out.text = { tag: 'plain_text', content: String(el.button_text ?? '') };
+		out.url = String(el.button_url ?? '');
 		out.type = el.button_type || 'default';
 		return out;
 	}
@@ -430,7 +424,7 @@ function buildRequestBody(
 						: [],
 			) as Array<Record<string, unknown>>;
 			body.elements = elementsArr.filter((el) => el?.elementType).map(buildCard2Element);
-			if ((body.elements as unknown[]).length === 0) body.elements = [{ tag: 'plain_text', content: ' ' }];
+			if ((body.elements as unknown[]).length === 0) body.elements = [{ tag: 'markdown', content: ' ' }];
 			card.body = body;
 			return { msg_type: 'interactive', card };
 		}
@@ -817,7 +811,7 @@ const properties: INodeProperties[] = [
 				type: 'string',
 				typeOptions: { rows: 2 },
 				default: '',
-				displayOptions: { show: { elementType: ['plain_text', 'markdown'] } },
+				displayOptions: { show: { elementType: ['markdown'] } },
 			},
 			{
 				displayName: '图片 Key',
@@ -838,7 +832,7 @@ const properties: INodeProperties[] = [
 				name: 'elementType',
 				type: 'options',
 				options: card2BodyElementTypeOptions,
-				default: 'plain_text',
+				default: 'markdown',
 			},
 			// --- 人员 person ---
 			{
@@ -968,6 +962,7 @@ const properties: INodeProperties[] = [
 				displayName: '前缀图标 Token',
 				name: 'person_list_icon_token',
 				type: 'string',
+				typeOptions: { password: true },
 				default: '',
 				description: '图标库 token，与自定义图片二选一',
 				displayOptions: { show: { elementType: ['person_list'] } },
@@ -975,7 +970,7 @@ const properties: INodeProperties[] = [
 			{
 				displayName: '前缀图标颜色',
 				name: 'person_list_icon_color',
-				type: 'string',
+				type: 'color',
 				default: '',
 				placeholder: 'blue',
 				displayOptions: { show: { elementType: ['person_list'] } },
@@ -1004,8 +999,8 @@ const properties: INodeProperties[] = [
 						typeOptions: { multipleValues: true, multipleValueButtonText: '添加元素' },
 						default: {},
 						options: [
-							{ displayName: '内容', name: 'content', type: 'string', typeOptions: { rows: 2 }, default: '', displayOptions: { show: { col_elType: ['plain_text', 'markdown'] } } },
-							{ displayName: '元素类型', name: 'col_elType', type: 'options', options: [{ name: 'Button', value: 'button' }, { name: 'Hr', value: 'hr' }, { name: 'Img', value: 'img' }, { name: 'Markdown', value: 'markdown' }, { name: 'Person', value: 'person' }, { name: 'Person_list', value: 'person_list' }, { name: 'Plain_text', value: 'plain_text' }], default: 'plain_text' },
+							{ displayName: '内容', name: 'content', type: 'string', typeOptions: { rows: 2 }, default: '', displayOptions: { show: { col_elType: ['markdown'] } } },
+							{ displayName: '元素类型', name: 'col_elType', type: 'options', options: [{ name: 'Button', value: 'button' }, { name: 'Hr', value: 'hr' }, { name: 'Img', value: 'img' }, { name: 'Markdown', value: 'markdown' }, { name: 'Person', value: 'person' }, { name: 'Person_list', value: 'person_list' }], default: 'markdown' },
 							{ displayName: '按钮链接', name: 'button_url', type: 'string', default: '', displayOptions: { show: { col_elType: ['button'] } } },
 							{ displayName: '按钮文字', name: 'button_text', type: 'string', default: '', displayOptions: { show: { col_elType: ['button'] } } },
 							{ displayName: '按钮样式', name: 'button_type', type: 'options', options: [{ name: 'Default', value: 'default' }, { name: 'Primary', value: 'primary' }, { name: 'Danger', value: 'danger' }], default: 'default', displayOptions: { show: { col_elType: ['button'] } } },
@@ -1094,8 +1089,8 @@ const properties: INodeProperties[] = [
 					{ displayName: '按钮链接', name: 'button_url', type: 'string', default: '', displayOptions: { show: { c_elType: ['button'] } } },
 					{ displayName: '按钮文字', name: 'button_text', type: 'string', default: '', displayOptions: { show: { c_elType: ['button'] } } },
 					{ displayName: '按钮样式', name: 'button_type', type: 'options', options: [{ name: 'Default', value: 'default' }, { name: 'Primary', value: 'primary' }, { name: 'Danger', value: 'danger' }], default: 'default', displayOptions: { show: { c_elType: ['button'] } } },
-					{ displayName: '内容', name: 'content', type: 'string', typeOptions: { rows: 2 }, default: '', displayOptions: { show: { c_elType: ['plain_text', 'markdown'] } } },
-					{ displayName: '元素类型', name: 'c_elType', type: 'options', options: [{ name: 'Button', value: 'button' }, { name: 'Hr', value: 'hr' }, { name: 'Img', value: 'img' }, { name: 'Markdown', value: 'markdown' }, { name: 'Person', value: 'person' }, { name: 'Person_list', value: 'person_list' }, { name: 'Plain_text', value: 'plain_text' }], default: 'plain_text' },
+					{ displayName: '内容', name: 'content', type: 'string', typeOptions: { rows: 2 }, default: '', displayOptions: { show: { c_elType: ['markdown'] } } },
+					{ displayName: '元素类型', name: 'c_elType', type: 'options', options: [{ name: 'Button', value: 'button' }, { name: 'Hr', value: 'hr' }, { name: 'Img', value: 'img' }, { name: 'Markdown', value: 'markdown' }, { name: 'Person', value: 'person' }, { name: 'Person_list', value: 'person_list' }], default: 'markdown' },
 					{ displayName: '图片 Key', name: 'img_key', type: 'string', default: '', displayOptions: { show: { c_elType: ['img'] } } },
 					{ displayName: '用户 ID', name: 'user_id', type: 'string', default: '', displayOptions: { show: { c_elType: ['person'] } } },
 					{ displayName: '头像尺寸', name: 'person_size', type: 'options', options: [{ name: 'Extra_small', value: 'extra_small' }, { name: 'Large', value: 'large' }, { name: 'Medium', value: 'medium' }, { name: 'Small', value: 'small' }], default: 'medium', displayOptions: { show: { c_elType: ['person'] } } },
@@ -1352,6 +1347,12 @@ export class FeishuCustomBot implements INodeType {
 					body,
 					json: true,
 				});
+
+				const resp = response as Record<string, unknown>;
+				if (resp.code !== undefined && resp.code !== 0) {
+					const errMsg = resp.msg || resp.StatusMessage || JSON.stringify(resp);
+					throw new NodeOperationError(this.getNode(), `Feishu API error (code: ${resp.code}): ${errMsg}`, { itemIndex: i });
+				}
 
 				results.push({
 					json: response as IDataObject,

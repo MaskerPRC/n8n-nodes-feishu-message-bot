@@ -1,6 +1,6 @@
 {
 	"name": "n8n-nodes-feishu-message-bot",
-	"version": "0.1.9",
+	"version": "0.1.10",
 	"description": "n8n 节点：飞书自定义机器人 Webhook 消息推送",
 	"license": "MIT",
 	"homepage": "https://github.com/MaskerPRC/n8n-nodes-feishu-message-bot",
@@ -26,15 +26,14 @@
 		"dev": "n8n-node dev",
 		"lint": "n8n-node lint",
 		"lint:fix": "n8n-node lint --fix",
-		"release": "n8n-node release",
-		"prepublishOnly": "n8n-node prerelease"
+		"release": "n8n-node release"
 	},
 	"files": [
 		"dist"
 	],
 	"n8n": {
 		"n8nNodesApiVersion": 1,
-		"strict": true,
+		"strict": false,
 		"nodes": [
 			"dist/nodes/FeishuCustomBot/FeishuCustomBot.node.js"
 		]
